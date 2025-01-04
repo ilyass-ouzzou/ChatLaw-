@@ -5,7 +5,6 @@ import numpy as np
 import ollama
 import pickle
 import os
-from datetime import datetime
 from fpdf import FPDF
 
 # Initialiser Flask
@@ -67,18 +66,58 @@ for doc_name, pdf_path in DOCUMENTS.items():
         print(f"Index de {doc_name} déjà existant.")
 
 # Fonction pour rechercher et générer une réponse
-def search_and_answer(question, index, sentences, model, top_k=3):
+def search_and_answer(question, index, sentences, model, selected_doc, top_k=3):
+    # Encoder la question
     question_embedding = model.encode([question])
+    
+    # Rechercher les phrases les plus pertinentes
     distances, indices = index.search(question_embedding, top_k)
     relevant_sentences = [sentences[i] for i in indices[0]]
     context = "\n".join(relevant_sentences)
-    response = ollama.generate(model='mistral', prompt=f"Contexte:\n{context}\n\nQuestion: {question}\nRéponse:")
+    
+    # Construire un prompt structuré en fonction du document sélectionné
+    if selected_doc == "code_penal":
+        prompt = (
+            f"Contexte (Code pénal marocain):\n{context}\n\n"
+            f"Question: {question}\n"
+            "Réponds de manière claire et concise en te basant sur le Code pénal marocain. "
+            "Si la réponse n'est pas dans le contexte, indique que tu ne sais pas."
+        )
+    elif selected_doc == "code_travail":
+        prompt = (
+            f"Contexte (Code du travail marocain):\n{context}\n\n"
+            f"Question: {question}\n"
+            "Réponds de manière claire et concise en te basant sur le Code du travail marocain. "
+            "Si la réponse n'est pas dans le contexte, indique que tu ne sais pas."
+        )
+    elif selected_doc == "moudawana":
+        prompt = (
+            f"Contexte (Moudawana):\n{context}\n\n"
+            f"Question: {question}\n"
+            "Réponds de manière claire et concise en te basant sur la Moudawana. "
+            "Si la réponse n'est pas dans le contexte, indique que tu ne sais pas."
+        )
+    else:
+        prompt = (
+            f"Contexte:\n{context}\n\n"
+            f"Question: {question}\n"
+            "Réponds de manière claire et concise en te basant sur le contexte fourni. "
+            "Si la réponse n'est pas dans le contexte, indique que tu ne sais pas."
+        )
+    
+    # Générer une réponse avec Mistral via Ollama
+    response = ollama.generate(model='mistral', prompt=prompt)
     return response['response'], relevant_sentences
 
 # Route pour la page d'accueil
 @app.route('/')
 def home():
-    return render_template('index.html', documents=DOCUMENTS.keys())
+    return render_template('index.html')
+
+# Route pour la page du chatbot
+@app.route('/chat')
+def chat():
+    return render_template('chat.html', documents=DOCUMENTS.keys())
 
 # Route pour poser une question
 @app.route('/ask', methods=['POST'])
@@ -96,8 +135,8 @@ def ask():
     # Charger l'index du document sélectionné
     index, sentences = load_index(f'data/{selected_doc}_index.pkl')
     
-    # Générer une réponse
-    answer, relevant_articles = search_and_answer(question, index, sentences, model)
+    # Générer une réponse avec un prompt adapté
+    answer, relevant_articles = search_and_answer(question, index, sentences, model, selected_doc)
     return jsonify({'answer': answer, 'articles': relevant_articles})
 
 # Route pour télécharger la conversation en PDF
