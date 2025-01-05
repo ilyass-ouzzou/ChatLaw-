@@ -4,3 +4,6 @@ faiss-cpu==1.7.4
 ollama==0.1.0
 PyPDF2==3.0.1
 fpdf2==2.7.4
+sphinx
+sphinx-rtd-theme
+recommonmark
